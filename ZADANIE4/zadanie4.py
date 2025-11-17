@@ -9,18 +9,12 @@ LICZBA_WATKOW = sorted({1, 2, 4, os.cpu_count() or 4})
 
 
 def policz_fragment_pi(pocz: int, kon: int, krok: float, wyniki: list[float], indeks: int) -> None:
-    # Funkcja oblicza częściową sumę przybliżenia liczby pi metodą prostokątów.
-    # Argumenty:
-    #     pocz, kon - zakres iteracji (indeksy kroków całkowania),
-    #     krok      - szerokość pojedynczego prostokąta (1.0 / LICZBA_KROKOW),
-    #     wyniki    - lista, do której należy wpisać wynik dla danego wątku na pozycji indeks,
-    #     indeks    - numer pozycji w liście 'wyniki' do zapisania rezultatu.
+    suma = 0.0
+    for i in range(pocz, kon):
+        x = (i + 0.5) * krok
+        suma += 4.0 / (1.0 + x * x)
 
-    # Każdy wątek powinien:
-    #   - obliczyć lokalną sumę dla przydzielonego przedziału,
-    #   - wpisać wynik do wyniki[indeks].
-
-    pass  # zaimplementuj obliczanie fragmentu całki dla danego wątku
+    wyniki[indeks] = suma
 
 
 def main():
@@ -28,22 +22,59 @@ def main():
     print(f"Liczba rdzeni logicznych CPU: {os.cpu_count()}")
     print(f"LICZBA_KROKOW: {LICZBA_KROKOW:,}\n")
 
-    # Wstępne uruchomienie w celu stabilizacji środowiska wykonawczego
+    # probne wlaczenie
     krok = 1.0 / LICZBA_KROKOW
     wyniki = [0.0]
     w = threading.Thread(target=policz_fragment_pi, args=(0, LICZBA_KROKOW, krok, wyniki, 0))
     w.start()
     w.join()
 
-    # ---------------------------------------------------------------
-    # Tu zaimplementować:
-    #   - utworzenie wielu wątków (zgodnie z LICZBY_WATKOW),
-    #   - podział pracy na zakresy [pocz, kon) dla każdego wątku,
-    #   - uruchomienie i dołączenie wątków (start/join),
-    #   - obliczenie przybliżenia π jako sumy wyników z poszczególnych wątków,
-    #   - pomiar czasu i wypisanie przyspieszenia.
-    # ---------------------------------------------------------------
+    # wlacsiwy eksperyment
+
+    czasy = {}
+
+    for liczba_w in LICZBA_WATKOW:
+        wyniki = [0.0] * liczba_w
+        watki = []
+
+        # wyznaczamy przedzialy
+        rozmiar = LICZBA_KROKOW // liczba_w
+
+        start_time = time.perf_counter()
+
+        for idx in range(liczba_w):
+            pocz = idx * rozmiar
+            kon = LICZBA_KROKOW if idx == liczba_w - 1 else (idx + 1) * rozmiar
+
+            t = threading.Thread(
+                target=policz_fragment_pi,
+                args=(pocz, kon, krok, wyniki, idx),
+            )
+            watki.append(t)
+            t.start()
+
+        for t in watki:
+            t.join()
+
+        # wynik końcowy: suma fragmentow razy krok
+        wynik_pi = sum(wyniki) * krok
+
+        elapsed = time.perf_counter() - start_time
+        czasy[liczba_w] = elapsed
+
+        print(f"{liczba_w} wątek/ki: pi ≈ {wynik_pi:.12f}, czas = {elapsed:.4f} s")
+
+
+    # przyspieszenia względem jednego wątku
+    print("\nPrzyspieszenie względem 1 wątku:")
+
+    czas1 = czasy[1]
+
+    for liczba_w in LICZBA_WATKOW:
+        speedup = czas1 / czasy[liczba_w]
+        print(f"{liczba_w} wątki: ×{speedup:.2f}")
 
 
 if __name__ == "__main__":
     main()
+
